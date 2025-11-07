@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Textarea } from "./ui/textarea";
-import { parseDecklist, type MtgCardQty } from "@/lib/decklist";
+import { parseDecklist } from "@/lib/decklist";
+import DecklistEntry, { type Card, type DecklistEntryType} from './DecklistEntry';
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { CircleX, Play, Trash2 } from "lucide-react";
 import { Spinner } from "./ui/spinner";
-import { chunk } from "@/lib/utils";
+//import { chunk } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -15,11 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
  
+const DATA_URI = "/api/cards"
 
-
-type IndexedMtgCardQty = MtgCardQty & {
-    index: number;
-};
 
 function MonteCarlo(){
     const simulation = useRef<number[] | null>(null);
@@ -28,16 +26,26 @@ function MonteCarlo(){
 
     const [iterations, setIterations] = useState<number>(1);
     const [sample, setSample] = useState<number>(7);
-    const [deckList, setDeckList] = useState<IndexedMtgCardQty[]>([]);
+    const [deckList, setDeckList] = useState<DecklistEntryType[]>([]);
 
     const [byTurn, setByTurn] = useState<number>(5);
     const [onThePlay, setOnThePlay] = useState<string>("play");
 
-    function loadDeckList(text: string){
-        const indexedList = parseDecklist(text).map((data, i) => {
-            return {...data, index: i};
+    async function loadDeckList(text: string){
+        const list = parseDecklist(text);
+        const names = list.map(li => li.name);
+        const response = await fetch(DATA_URI, {
+            method: "POST",
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({names})
         });
-        setDeckList(indexedList);
+        const data = await response.json();
+        console.log("Fetched card data", data);
+        const mergedData = list.map(li => {
+            const dataItem = data.find((di: Card) => di.name == li.name);
+            return {...dataItem, qty: li.qty};
+        });
+        setDeckList(mergedData);
     }
     async function runSimulation(){
         if(progress != null || workerRef.current == null) return; 
@@ -134,10 +142,8 @@ function MonteCarlo(){
                 <div>
                     <h3>Deck List</h3>
                     <ul className="text-left">
-                        {deckList.map(data => 
-                            <li key={data.name} className={cardStyle}>
-                                {data.name} <span className="float-end">x{data.qty}</span>
-                            </li>
+                        {deckList.map((d: DecklistEntryType, i) => 
+                            <DecklistEntry {...d} key={i} /> 
                         )}
                     </ul>
                 </div>
