@@ -34,8 +34,14 @@ import UB from '@/assets/mana/UB.svg?react';
 import UR from '@/assets/mana/UR.svg?react';
 import WB from '@/assets/mana/WB.svg?react';
 import WU from '@/assets/mana/WU.svg?react';
+import X from '@/assets/mana/X.svg?react';
+import Y from '@/assets/mana/Y.svg?react';
+import Z from '@/assets/mana/Z.svg?react';
+// TODO: phyrexian and half mana
+
 
 import { useRef, useState } from 'react';
+import { FlipHorizontal } from 'lucide-react';
 
 const POPUP_DELAY = 800;
 
@@ -55,6 +61,8 @@ export interface Card {
     set_index: string;
     rarity: string;    
     mana_cost?: string;
+    dualSpell?: boolean;
+    dualFace?: boolean;
 }
 
 export type DecklistEntryType = Card & {
@@ -94,6 +102,7 @@ function lookupManaIcon(token: string): any {
         '11': _11, '12': _12, '13': _13, '14': _14, '15': _15,
         'B/G': BG, 'B/R': BR, 'G/U': GU, 'G/W': GW, 'R/G': RG,
         'R/W': RW, 'U/B': UB, 'U/R': UR, 'W/B': WB, 'W/U': WU,
+        'X': X, 'Y': Y, 'Z': Z,
     };
     return manaIconMap[token];
 }
@@ -106,19 +115,23 @@ function DecklistEntry(props: DecklistEntryType){
             setCardVisible(true);
         }, POPUP_DELAY);
     };
-
     const hideCard = () => {
         if (timerRef.current) clearTimeout(timerRef.current);
         setCardVisible(false);
     };
+    // TODO: For dual faced cards add flip action and make sure mana cost is present in data.
+    const image = props.dualFace? props.image[0]: props.image;
+    const name = props.dualSpell? props.name.split("/")[0] : props.name;
     return (
     <div onMouseEnter={revealCard} onMouseLeave={hideCard} 
             className={`relative border bg-gray-100 select-none cursor-pointer text-sm ${cardVisible? "": "px-1"} w-60`}>
-        <img src={props.image} className={
+        <img src={image} 
+            className={
             `absolute z-100 w-60 transition-opacity duration-300 ${cardVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}/>
         <div className="flex">
             {props.mana_cost && <ManaCost cost={props.mana_cost} className="flex-item mt-0.5 mr-1" />}
-            <div className="flex-item card-title mt-0.5">{props.name}</div>
+            <div className="flex-item card-title mt-0.5">{name}</div>
+            {props.dualFace && <FlipHorizontal className="w-4 h-4 ml-1 mt-0.5" />}
             <div className="inline-block ml-auto font-bold">&times; {props.qty}</div>
         </div>
     </div>

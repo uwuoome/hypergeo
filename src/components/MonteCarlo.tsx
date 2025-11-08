@@ -15,6 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import RMana from '@/assets/mana/R.svg?react';
+import GMana from '@/assets/mana/G.svg?react';
+import UMana from '@/assets/mana/U.svg?react';
+import BMana from '@/assets/mana/B.svg?react';
+import WMana from '@/assets/mana/W.svg?react';
+import CMana from '@/assets/mana/C.svg?react';
  
 const DATA_URI = "/api/cards"
 
@@ -40,9 +46,16 @@ function MonteCarlo(){
             body: JSON.stringify({names})
         });
         const data = await response.json();
-        console.log("Fetched card data", data);
+        // console.log("Fetched card data", data.map(c => c.name));
         const mergedData = list.map(li => {
             const dataItem = data.find((di: Card) => di.name == li.name);
+            if(! dataItem){
+                const dualSpell = data.find((di: Card) => di.name.match(`^${li.name}.*$`));
+                if(! dualSpell){
+                    return {name: "N/A", qty: li.qty};
+                }
+                return {...dualSpell, qty: li.qty, dualSpell: true, dualFace: Array.isArray(dualSpell.thumb)};
+            }
             return {...dataItem, qty: li.qty};
         });
         setDeckList(mergedData);
@@ -91,8 +104,6 @@ function MonteCarlo(){
             workerRef.current = null;
         };
     }, []);
-
-    const cardStyle = `border bg-gray-100 select-none cursor-pointer text-sm px-1`;
 
     return (
     <>
@@ -165,8 +176,33 @@ function MonteCarlo(){
                     </div>
                    
                     <h4 className="text-left">Specific Cards Seen: None</h4>
+                    <div>
+                        
+                    </div>
                     <h4 className="text-left">Colour Sources Available: None</h4>
+                    <div>
+                        <div className="flex h-6 gap-2">
+                            <span>Add: </span>
+                            <WMana className="cursor-pointer" />
+                            <GMana className="cursor-pointer" />
+                            <RMana className="cursor-pointer" />
+                            <BMana className="cursor-pointer" />
+                            <UMana className="cursor-pointer" />
+                            <CMana className="cursor-pointer" />
+                        </div>
+                    </div>
                     <h4 className="text-left">Total Mana Available: None</h4>
+                    <div>
+                        <div className="flex h-6 gap-2">
+                            <span>Add: </span>
+                            <WMana className="cursor-pointer" />
+                            <GMana className="cursor-pointer" />
+                            <RMana className="cursor-pointer" />
+                            <BMana className="cursor-pointer" />
+                            <UMana className="cursor-pointer" />
+                            <CMana className="cursor-pointer" />
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
