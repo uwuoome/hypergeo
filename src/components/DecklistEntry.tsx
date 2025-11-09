@@ -66,7 +66,9 @@ export interface Card {
 }
 
 export type DecklistEntryType = Card & {
-    qty: number;
+    qty?: number;
+    onClick?: () => void;
+    disabled?: boolean;
 }
 
 type ManaCostType = {
@@ -119,20 +121,25 @@ function DecklistEntry(props: DecklistEntryType){
         if (timerRef.current) clearTimeout(timerRef.current);
         setCardVisible(false);
     };
+    const onClick = () => {
+        hideCard();
+        if(props.disabled  || !props.onClick) return;
+        props.onClick();
+    }
     // TODO: For dual faced cards add flip action and make sure mana cost is present in data.
     const image = props.dualFace? props.image[0]: props.image;
     const name = props.dualSpell? props.name.split("/")[0] : props.name;
     return (
-    <div onMouseEnter={revealCard} onMouseLeave={hideCard} 
+    <div onMouseEnter={revealCard} onMouseLeave={hideCard} onClick={onClick}
             className={`relative border bg-gray-100 select-none cursor-pointer text-sm ${cardVisible? "": "px-1"} w-60`}>
         <img src={image} 
             className={
             `absolute z-100 w-60 transition-opacity duration-300 ${cardVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}/>
         <div className="flex">
             {props.mana_cost && <ManaCost cost={props.mana_cost} className="flex-item mt-0.5 mr-1" />}
-            <div className="flex-item card-title mt-0.5">{name}</div>
+            <div className={`flex-item card-title mt-0.5 ${props.disabled? "text-gray-400": ""}`}>{name}</div>
             {props.dualFace && <FlipHorizontal className="w-4 h-4 ml-1 mt-0.5" />}
-            <div className="inline-block ml-auto font-bold">&times; {props.qty}</div>
+            {props.qty && <div className="inline-block ml-auto font-bold">&times; {props.qty}</div>}
         </div>
     </div>
     );
