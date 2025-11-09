@@ -18,7 +18,8 @@ import {
 import ManaPicker from "./ManaPicker";
 
  
-const DATA_URI = "/api/cards"
+const DATA_URI = "/api/cards";
+const TRANSPARENT_PIXEL_SRC = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
 function MonteCarlo(){
     const title = "Monte Carlo Draw Simulator for MTG";
@@ -36,6 +37,9 @@ function MonteCarlo(){
     const [cardsRequired, setCardsRequired] = useState<Card[]>([]);
     const [coloursRequired, setColoursRequired] = useState<string[]>([]);
     const [manaRequired, setManaRequired] = useState<number>(0);
+
+    const [cardPopup, setCardPopup] = useState<string | null>(null);
+    const [debugInfo, setDebugInfo] = useState<string>("");
 
     async function loadDeckList(text: string){
         const list = parseDecklist(text);
@@ -95,6 +99,24 @@ function MonteCarlo(){
         if(data.qty == null || alreadyAdded >= data.qty) return;
         const toAdd = {...data, qty: null};
         setCardsRequired(prev => [...prev,  toAdd]);
+    }
+    function showCardData(data: DecklistEntryType | null){
+        if(data == null){
+            setCardPopup(null);
+            setDebugInfo("");
+        }else{
+            setCardPopup(data.image);
+            setDebugInfo([
+                `Colours: ${data.colours.join(", ")}`,
+                `CMC: ${data.cmc}`,
+                `Types: ${data.types}`,
+                `Keywords: ${data.keywords.join(", ")}`,
+                `Mana Cost: ${data.mana_cost || 0}`,
+                `Mana Produced: ${data.mana_produced || "None"}`,
+                `Rarity: ${data.rarity}`,
+                `${data.dualFace? "Dual Faced": data.dualSpell? "Dual Spell": ""}`,
+            ].join("\n"));
+        }
     }
 
     function removeCardRequirement(index: number){
@@ -162,6 +184,12 @@ function MonteCarlo(){
 
     return (
     <>
+    <img src={cardPopup || TRANSPARENT_PIXEL_SRC} style={{top: (window.scrollY+100)+"px"}}
+            className={
+            `absolute left-10 z-100 w-60 h-80 transition-opacity duration-300 delay-0 bg-black
+            ${cardPopup ? "opacity-100" : "opacity-0 pointer-events-none"}`}/>
+    {debugInfo && <pre style={{top: (window.scrollY+500)+"px"}}
+        className="absolute left-10 w-60 text-left text-xs bg-gray-200 p-2 border-gray-400">{debugInfo}</pre>}
     <h2 className="">{title}</h2> 
     <div className="flex">
         
@@ -169,7 +197,8 @@ function MonteCarlo(){
             <h3>Deck List</h3>
             <ul className="text-left">
                 {deckList.map((d: DecklistEntryType, i) => 
-                    <DecklistEntry {...d} key={i} disabled={canAddCard(d)} onClick={addCardRequirement.bind(null, d)} /> 
+                    <DecklistEntry {...d} key={i} disabled={canAddCard(d)} popup={showCardData} /*setCardPopup showCardData.bind(null, d)*/
+                        onClick={addCardRequirement.bind(null, d)}  /> 
                 )}
             </ul>
         </div>
