@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type ChangeEventHandler } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Textarea } from "./ui/textarea";
 import { parseDecklist } from "@/lib/decklist";
 import DecklistEntry, { type Card, type DecklistEntryType} from './DecklistEntry';
@@ -32,11 +32,11 @@ function MonteCarlo(){
     const workerRef = useRef<Worker | null>(null);
     const [progress, setProgress] = useState<number | null>(null);
 
-    const [iterations, setIterations] = useState<number>(1);
-    const [sample, setSample] = useState<number>(7);
+    const [iterations, setIterations] = useState<number>(500);
+    const [sample, setSample] = useState<number>(20);
     const [deckList, setDeckList] = useState<DecklistEntryType[]>([]);
 
-    const [byTurn, setByTurn] = useState<number>(5);
+    const [byTurn, setByTurn] = useState<number>(1);
     const [onThePlay, setOnThePlay] = useState<string>("play");
 
     const [cardsRequired, setCardsRequired] = useState<DecklistEntryType[]>([]);
@@ -89,7 +89,7 @@ function MonteCarlo(){
         if(simComplete()){
             if(! confirm("Clear deck and generated simulation data?")) return;
             simReset();
-            workerRef.current?.postMessage({action: "reset", iterations: iterations*1000, sample, deckList: deckList});
+            workerRef.current?.postMessage({action: "clear", iterations: iterations*1000, sample, deckList: deckList});
         }
         loadDeckList("");
     }
@@ -135,9 +135,12 @@ function MonteCarlo(){
 
     function changeTurnLimitRequirement(evt: ChangeEvent<HTMLInputElement>){
         const turnLimit = parseInt(evt.target.value);
-        setByTurn(turnLimit);
-        if(turnLimit >= simulation.current?.maxDrawsPerGame-6){
+        const lastTurnInSample = simulation.current?.maxDrawsPerGame-6;
+        if(turnLimit >= lastTurnInSample){
             setOnThePlay("play"); 
+            setByTurn(lastTurnInSample);
+        }else{
+            setByTurn(turnLimit);
         }
     }
     function removeCardRequirement(index: number){
@@ -160,10 +163,12 @@ function MonteCarlo(){
         workerRef.current.postMessage({
             action: "query", 
             cards: deckList.map(li => li.card),
-            draws: 6 + byTurn + (onThePlay? 0: 1), 
-            requiredCards: cardsRequired.map(entry => entry.card._id), 
-            colours: coloursRequired, 
-            totalMana: manaRequired
+            draws: 6 + byTurn + (onThePlay? 0: 1),
+            constraints: { 
+                cards: cardsRequired.map(entry => entry.card._id), 
+                colours: coloursRequired, 
+                totalMana: manaRequired
+            }
         });
     }
 
@@ -180,7 +185,7 @@ function MonteCarlo(){
                 setProgress(null);
             }else if(status == "query-complete"){
                 setQueryProgress(null);
-                setResult(result.p);
+                setResult(result.p.toFixed(3));
             }else if(message){
                 alert(message);
             }
@@ -277,6 +282,7 @@ function MonteCarlo(){
 
             {simComplete() && 
             <div className="block mt-4 p-2 w-[450px]">
+
                 <p className="text-left">Step 3: Impose <b>Constraints</b> to query the data.</p>
                 <div className="flex my-1">
                     <Label htmlFor="by-turn" className="mr-4">By Turn:</Label> 
@@ -294,25 +300,32 @@ function MonteCarlo(){
                     </Select>      
                 </div>
 
-                <div className="flex my-2">
-                    <div className="text-left mr-2">Specific Cards Seen: </div>
-                    <div>
-                        {cardsRequired.length > 0 && cardsRequired.map((d, i) => 
-                            <DecklistEntry {...d} key={i} popup={showCardData}  onClick={removeCardRequirement.bind(null, i)} />
-                        ) || <span>None Required</span>}
+                <div className="border border-gray-200 p-2">
+                    <div className="flex my-2">
+                        <div className="text-left mr-2">Specific Cards Seen: </div>
+                        <div>
+                            {cardsRequired.length > 0 && cardsRequired.map((d, i) => 
+                                <DecklistEntry {...d} key={i} popup={showCardData}  onClick={removeCardRequirement.bind(null, i)} />
+                            ) || <span>None Required</span>}
+                        </div>
+                    </div>
+                    <div className="flex my-2">
+                        <ManaPicker title="Colour Sources Required:" onChange={colourRequirementsUpdated} /> 
+                    </div>
+                    <div className="flex"> 
+                        <span className="text-left my-1 mr-2">Total Mana Required: </span>
+                        <Input type="number" min={coloursRequired.length} max="20" value={manaRequired} 
+                            onChange={manaRequirementsUpdated} className="w-20" />
+                        <Button variant="outline" className="ml-auto" onClick={
+                            alert.bind(null, "TODO: Copy this section and logically or the results")
+                        }>OR</Button>
                     </div>
                 </div>
-                <div className="flex my-2">
-                    <ManaPicker title="Colour Sources Required:" onChange={colourRequirementsUpdated} /> 
-                </div>
-                <div className="flex my-2"> 
-                    <span className="text-left my-1 mr-2">Total Mana Required: </span>
-                    <Input type="number" min={coloursRequired.length} max="20" value={manaRequired} 
-                        onChange={manaRequirementsUpdated} className="w-20" />
-                    <Button variant="outline" className="ml-auto" onClick={query}><Search /> Search</Button>
-                </div>
+
+                
                 <div className="flex my-2 text-center text-bold"> 
-                    {result}
+                    {result} 
+                    <Button variant="outline" className="ml-auto" onClick={query}><Search /> Search</Button>
                 </div>
             </div>
             }

@@ -13,7 +13,6 @@ function shuffle(array: number[]) {
   return array;
 }
 
-
 function simulateDraws(iterations: number, cardsSeen: number, indexedCards: any[]) {
     if(iterations < 100 || iterations > 10000000) return [];
     if(cardsSeen < 1 || cardsSeen > 30) return [];
@@ -40,41 +39,80 @@ function simulateDraws(iterations: number, cardsSeen: number, indexedCards: any[
     };
 }
 
-
-function querySimulations(cards: Card[], cardsSeen: number, requiredCards: string[], colours: string[], totalMana: number){
-    const simCount = simulation.length / simSize;
-    const criterionMet = Array(simCount).fill(null);         // for each game we log if all criteria were met
-    
-    function hasRequiredColours(available: string[][], required: string[]){
-        return required.every(rc =>{
-            const foundIndex = available.findIndex(a => a.find(b => b == rc));
-            if(foundIndex == -1) return false;
-            available.splice(foundIndex, 1);    // remove the found colour source from the array so that it cant be used again
-            return true;
-        });
-    }
+export type GameRequirements ={
+    cards: string[];
+    totalMana: number;
+    colours: string[];
+}
 
     
-    function gamesim(draws: number[]): boolean{
-        const gameColoursAvailable: string[][] = [];
-        const numDraws = Math.min(cardsSeen, draws.length);
-        let totalManaAvailable = 0;
-        for(let i=0; i<numDraws; i++){
-            let cardDrawn: Card = cards[ draws[i] ];
-            if(cardDrawn.mana_produced){
+function hasRequiredColours(available: string[][], required: string[]){
+    const avail = [...available]; 
+    return required.every(rc =>{
+        const foundIndex = avail.findIndex(a => a.find(b => b == rc));
+        if(foundIndex == -1) return false;
+        avail.splice(foundIndex, 1);    // remove the found colour source from the array so that it cant be used again
+        return true;
+    });
+}
+
+// true if meets colour and generic mana requirement
+function canCast(cost: string[], available: string[][]){
+    const genericCost = cost[0] == "X"? 0: parseInt(cost[0]); // TODO: this wont handle X2G,  or XXRR costs
+    const hasColours = (cost: string[]) => hasRequiredColours(available, cost); 
+    const hasGeneric = () => available.length - (cost.length-1)  >= genericCost;
+    if(isNaN(genericCost)) return hasColours(cost);
+    return hasColours(cost.slice(1)) && hasGeneric();
+}
+
+function gamesim(cards: Card[], draws: number[], cardsSeen: number, constraints: GameRequirements): boolean{
+    const gameColoursAvailable: string[][] = [];
+    const numDraws = Math.min(cardsSeen, draws.length);
+    let totalManaAvailable = 0;
+    
+    // first we get all the mana produced by lands or 0 cost spells
+    for(let i=0; i<numDraws; i++){
+        let cardDrawn: Card = cards[ draws[i] ];
+        if(cardDrawn.mana_produced){
+            let manaCost = cardDrawn?.mana_cost;
+            if(!manaCost?.length || !manaCost[0] ){   // if there is nop mana cost or the value is 0
                 gameColoursAvailable.push(cardDrawn.mana_produced);
-                // mana_produced gives the colour produced but not the number of mana, unless we parse the oracle text.
                 totalManaAvailable += 1; // add one for now,  but some sources add multple mana
             }
         }
-        // IGNORING REQUIRED CARDS FOR NOW
-        // TODO: instead of true / false could return turn number conditions are met by
-        return totalManaAvailable >= totalMana && hasRequiredColours(gameColoursAvailable, colours);// check all requoiirements met
     }
+    // now we go over it again checking for spells we can play that produce mana
+    const manaRocks = draws.filter((draw) => {
+        const cardDrawn: Card = cards[ draw ];
+        const manaCost = cardDrawn?.mana_cost;
+        return cardDrawn.mana_produced && manaCost && manaCost[0];
+    });
+    // if we have the mana to cast it using our lands, then we add it to the pool.
+    // this isn't a perfect solution as one rock could enable casting another
+    // this also assumes that any rock can produce the mana, when some only do so conditionally
+    for(let i=0; i<manaRocks.length; i++){
+        const rock = cards[ manaRocks[i] ];
+        if(canCast(rock.mana_cost!, gameColoursAvailable)){
+            gameColoursAvailable.push(rock.mana_produced!);
+            totalManaAvailable += 1;
+        }
+    }
+    // TODO: instead of true / false could return turn number conditions are met by
+    const drawCardIds = draws.map(drawIndex => cards[drawIndex]._id);
+    const hasSpecificCards = (cardIds: string[], requiredIds: string[]) => requiredIds.every(rid => cardIds.includes(rid));
 
+    return totalManaAvailable >= constraints.totalMana && 
+        hasRequiredColours(gameColoursAvailable, constraints.colours) &&
+        hasSpecificCards(drawCardIds, constraints.cards);
+}
+
+function querySimulations(cards: Card[], cardsSeen: number, constraints: GameRequirements){//requiredCards: string[], colours: string[], totalMana: number){
+    const simCount = simulation.length / simSize;
+    const criterionMet = Array(simCount).fill(null);         // for each game we log if all criteria were met
+    
     for(let s=0; s<simCount; s++){
         let gameDraws = simulation.slice(s*simSize, s*simSize+simSize);
-        criterionMet[s] = gamesim(gameDraws);
+        criterionMet[s] = gamesim(cards, gameDraws, cardsSeen, constraints);
     }
 
     const successes = criterionMet.reduce((acc, success) => success? acc+1: acc, 0);
@@ -94,7 +132,7 @@ function onMessage(event: MessageEvent) {
         });
     }else if(data.action == "query"){
         const startTime = Date.now();
-        const result = querySimulations(data.cards, data.draws, data.requiredCards, data.colours, data.totalMana);
+        const result = querySimulations(data.cards, data.draws, data.constraints);//data.requiredCards, data.colours, data.totalMana);
         const elapsed = Date.now() - startTime;
         self.postMessage({
             status: 'query-complete',
@@ -118,12 +156,5 @@ function onMessage(event: MessageEvent) {
 
 self.onmessage = onMessage;
 self.onerror = (error) => {
-    // This is your lifeline! If it logs, the worker crashed immediately 
-    // after the script was loaded/parsed.
-    console.error("Worker CRASHED on startup:", error); 
+    console.error("Worker CRASHED", error); 
 };
-/*
-self.onmessage = function(event) {
-    console.log("Message received in worker.");
-    self.postMessage({ status: 'test_ok' });
-};*/

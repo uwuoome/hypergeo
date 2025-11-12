@@ -61,7 +61,7 @@ export type Card = {
     set: string;
     set_index: string;
     rarity: string;    
-    mana_cost?: string;
+    mana_cost?: string[];
     mana_produced?: string[];
     dualSpell?: boolean;
     dualFace?: boolean;
@@ -76,15 +76,14 @@ export type DecklistEntryType = {
 }
 
 type ManaCostType = {
-    cost: string;
+    cost: string[];
     className?: string;
 }; 
 
 function ManaCost(props: ManaCostType){
-    const parts = parseManaCost(props.cost);
     return (
         <div className={props.className || "inline-block mr-1 mt-1"}>
-            {parts.map((pt, i) => {
+            {props.cost.map((pt, i) => {
                 const Icon = lookupManaIcon(pt);
                 if(Icon == null) return pt;
                 return <Icon key={i} className="w-4 h-4 float-end" />
@@ -93,12 +92,6 @@ function ManaCost(props: ManaCostType){
     );   
 }
 
-function parseManaCost(cost: string): string[] {
-    if(!cost) return [];
-    const matches = cost.match(/\{([^{}]+)\}/g);// Find content inside braces
-    if(!matches) return [];
-    return matches.map(match => match.replace(/\{|\}/g, ''));
-}
 
 function lookupManaIcon(token: string): any {
     const manaIconMap: { [key: string]: any } = {
