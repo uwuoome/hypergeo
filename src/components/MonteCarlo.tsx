@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ChangeEventHandler } from "react";
 import { Textarea } from "./ui/textarea";
 import { parseDecklist } from "@/lib/decklist";
 import DecklistEntry, { type Card, type DecklistEntryType} from './DecklistEntry';
@@ -21,9 +21,14 @@ import ManaPicker from "./ManaPicker";
 const DATA_URI = "/api/cards";
 const TRANSPARENT_PIXEL_SRC = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
+type SimulationResult = {
+    length: number;
+    maxDrawsPerGame: number;
+}
+
 function MonteCarlo(){
     const title = "Monte Carlo Draw Simulator for MTG";
-    const simulation = useRef<number[]>([]);
+    const simulation = useRef<SimulationResult>({length: 0, maxDrawsPerGame: 0});
     const workerRef = useRef<Worker | null>(null);
     const [progress, setProgress] = useState<number | null>(null);
 
@@ -34,12 +39,15 @@ function MonteCarlo(){
     const [byTurn, setByTurn] = useState<number>(5);
     const [onThePlay, setOnThePlay] = useState<string>("play");
 
-    const [cardsRequired, setCardsRequired] = useState<Card[]>([]);
+    const [cardsRequired, setCardsRequired] = useState<DecklistEntryType[]>([]);
     const [coloursRequired, setColoursRequired] = useState<string[]>([]);
     const [manaRequired, setManaRequired] = useState<number>(0);
 
     const [cardPopup, setCardPopup] = useState<string | null>(null);
     const [debugInfo, setDebugInfo] = useState<string>("");
+
+    const [queryProgress, setQueryProgress] = useState<number | null>(null);
+    const [result, setResult] = useState<string>("");
 
     async function loadDeckList(text: string){
         const list = parseDecklist(text);
@@ -56,74 +64,85 @@ function MonteCarlo(){
             if(! dataItem){
                 const dualSpell = data.find((di: Card) => di.name.match(`^${li.name}.*$`));
                 if(! dualSpell){
-                    return {name: "N/A", qty: li.qty};
+                    return {card: {name: "N/A"}, qty: li.qty};
                 }
-                return {...dualSpell, qty: li.qty, dualSpell: true, dualFace: Array.isArray(dualSpell.thumb)};
+                return {
+                    card: {...dualSpell, dualSpell: true, dualFace: Array.isArray(dualSpell.thumb) },
+                    qty: li.qty
+                };
             }
-            return {...dataItem, qty: li.qty};
+            return {card: dataItem, qty: li.qty};
         });
         setDeckList(mergedData);
     }
     async function runSimulation(){
         if(progress != null || workerRef.current == null) return; 
-        if(simulation.current.length > 0){
+        if(simComplete()){
             if(! confirm("Rerun simulation and lose current dataset?")) return; 
         }
-        simulation.current = [];
+        simReset();
         setProgress(1);
         console.log("generating dataset");
         workerRef.current.postMessage({action: "generate", iterations: iterations*1000, sample, deckList: deckList});
     }
     function clearData(){
-        if(simulation.current.length > 0){
+        if(simComplete()){
             if(! confirm("Clear deck and generated simulation data?")) return;
+            simReset();
+            workerRef.current?.postMessage({action: "reset", iterations: iterations*1000, sample, deckList: deckList});
         }
         loadDeckList("");
-        simulation.current = [];
     }
 
-    const simComplete = () => simulation.current.length > 0;
+    const simReset = () => {
+        simulation.current = {length: 0, maxDrawsPerGame: 0};
+    }
+    const simComplete = () => simulation.current?.length > 0;
 
     function canAddCard(data: DecklistEntryType){
         if(data.qty == null) return false;
         return cardsRequired.reduce((acc, cur) => {
-            return cur._id == data._id? acc+1: acc;
+            return cur.card._id == data.card._id? acc+1: acc;
         }, 0) >= data.qty;
     } 
     function addCardRequirement(data: DecklistEntryType){
         if(! simComplete()) return;
-        console.log(data);
         const alreadyAdded = cardsRequired.reduce((acc, cur) => {
-            return cur._id == data._id? acc+1: acc;
+            return cur.card._id == data.card._id? acc+1: acc;
         }, 0);
         if(data.qty == null || alreadyAdded >= data.qty) return;
         const toAdd = {...data, qty: null};
-        setCardsRequired(prev => [...prev,  toAdd]);
+        setCardsRequired(prev => [...prev, toAdd]);
     }
     function showCardData(data: DecklistEntryType | null){
         if(data == null){
             setCardPopup(null);
             setDebugInfo("");
         }else{
-            setCardPopup(data.image);
+            setCardPopup(data.card.image);
             setDebugInfo([
-                `Colours: ${data.colours.join(", ")}`,
-                `CMC: ${data.cmc}`,
-                `Types: ${data.types}`,
-                `Keywords: ${data.keywords.join(", ")}`,
-                `Mana Cost: ${data.mana_cost || 0}`,
-                `Mana Produced: ${data.mana_produced || "None"}`,
-                `Rarity: ${data.rarity}`,
-                `${data.dualFace? "Dual Faced": data.dualSpell? "Dual Spell": ""}`,
+                `Colours: ${data.card.colours.join(", ")}`,
+                `CMC: ${data.card.cmc}`,
+                `Types: ${data.card.types}`,
+                `Keywords: ${data.card.keywords.join(", ")}`,
+                `Mana Cost: ${data.card.mana_cost || 0}`,
+                `Mana Produced: ${data.card.mana_produced || "None"}`,
+                `Rarity: ${data.card.rarity}`,
+                `${data.card.dualFace? "Dual Faced": data.card.dualSpell? "Dual Spell": ""}`,
             ].join("\n"));
         }
     }
 
+    function changeTurnLimitRequirement(evt: ChangeEvent<HTMLInputElement>){
+        const turnLimit = parseInt(evt.target.value);
+        setByTurn(turnLimit);
+        if(turnLimit >= simulation.current?.maxDrawsPerGame-6){
+            setOnThePlay("play"); 
+        }
+    }
     function removeCardRequirement(index: number){
         setCardsRequired(prev => prev.filter((_, i) => i != index));
     }
-
-
     function colourRequirementsUpdated(val: string[]){
         setColoursRequired(val);
         if(val.length > manaRequired){
@@ -134,17 +153,34 @@ function MonteCarlo(){
         setManaRequired(Math.floor(Math.min(Math.max(coloursRequired.length, evt.target.value), 20))    );
     }
 
+    function query(){
+        if(workerRef.current == null || queryProgress != null) return;
+        setQueryProgress(1);
+        setResult("Querying....");
+        workerRef.current.postMessage({
+            action: "query", 
+            cards: deckList.map(li => li.card),
+            draws: 6 + byTurn + (onThePlay? 0: 1), 
+            requiredCards: cardsRequired.map(entry => entry.card._id), 
+            colours: coloursRequired, 
+            totalMana: manaRequired
+        });
+    }
+
     useEffect(() => {
         const workerURL = new URL('@/workers/datagen.ts', import.meta.url);
         workerRef.current = new Worker(workerURL, {
             type: "module",
         });
         workerRef.current.onmessage = (event: any) => {
-            const { status, data, elapsed, message } = event.data;
-            if(status == "complete"){
-                simulation.current = data;
-                console.log("Dataset of", data.length, "elements generated in ", elapsed, "millisecs");
+            const { status, result, elapsed, message } = event.data;
+            if(status == "generate-complete"){
+                simulation.current = result;
+                console.log("Dataset of", result.length, "elements generated in ", elapsed, "millisecs");
                 setProgress(null);
+            }else if(status == "query-complete"){
+                setQueryProgress(null);
+                setResult(result.p);
             }else if(message){
                 alert(message);
             }
@@ -219,7 +255,7 @@ function MonteCarlo(){
                     </Button>
                     :
                     <Button variant="destructive" className="w-30 text-sm ml-auto" onClick={clearData}>
-                        <Trash2 /> {simulation.current.length == 0? "Clear Deck": "Clear Data"}
+                        <Trash2 /> {!simComplete()? "Clear Deck": "Clear Data"}
                     </Button>
                     }
                 </div>
@@ -235,19 +271,19 @@ function MonteCarlo(){
                     </Button>
                 </div>
                 <div className="flex m-4">
-                    {simComplete()? `Data for ${simulation.current.length} games has been generated.`: ""}
+                    {simComplete()? `Data for ${simulation.current.length} draws has been generated.`: ""}
                 </div>
             </div>
 
-            {simulation.current.length > 0 && 
+            {simComplete() && 
             <div className="block mt-4 p-2 w-[450px]">
                 <p className="text-left">Step 3: Impose <b>Constraints</b> to query the data.</p>
                 <div className="flex my-1">
                     <Label htmlFor="by-turn" className="mr-4">By Turn:</Label> 
-                    <Input type="number" min="1" max="50" step="1" value={byTurn} className="w-20" 
-                        onChange={(evt) => setByTurn(parseInt(evt.target.value))}/>
+                    <Input type="number" min="1" max={simulation.current.maxDrawsPerGame-6} step="1" value={byTurn} className="w-20" 
+                        onChange={changeTurnLimitRequirement}/>
                     <span className="m-1">on the</span>
-                    <Select value={onThePlay} onValueChange={setOnThePlay}>
+                    <Select value={onThePlay} onValueChange={setOnThePlay} disabled={byTurn >= simulation.current.maxDrawsPerGame-6}>
                         <SelectTrigger className="w-[110px]">
                             <SelectValue placeholder="on the play?" />
                         </SelectTrigger>
@@ -262,7 +298,7 @@ function MonteCarlo(){
                     <div className="text-left mr-2">Specific Cards Seen: </div>
                     <div>
                         {cardsRequired.length > 0 && cardsRequired.map((d, i) => 
-                            <DecklistEntry {...d} key={i}  onClick={removeCardRequirement.bind(null, i)} />
+                            <DecklistEntry {...d} key={i} popup={showCardData}  onClick={removeCardRequirement.bind(null, i)} />
                         ) || <span>None Required</span>}
                     </div>
                 </div>
@@ -273,7 +309,10 @@ function MonteCarlo(){
                     <span className="text-left my-1 mr-2">Total Mana Required: </span>
                     <Input type="number" min={coloursRequired.length} max="20" value={manaRequired} 
                         onChange={manaRequirementsUpdated} className="w-20" />
-                    <Button variant="outline" className="ml-auto"><Search /> Search</Button>
+                    <Button variant="outline" className="ml-auto" onClick={query}><Search /> Search</Button>
+                </div>
+                <div className="flex my-2 text-center text-bold"> 
+                    {result}
                 </div>
             </div>
             }

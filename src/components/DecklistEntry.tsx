@@ -45,7 +45,7 @@ import { FlipHorizontal } from 'lucide-react';
 
 const POPUP_DELAY = 800;
 
-export interface Card {
+export type Card = {
     _id: string;
     name: string;
     oracle_text: string;
@@ -62,13 +62,14 @@ export interface Card {
     set_index: string;
     rarity: string;    
     mana_cost?: string;
-    mana_produced?: string;
+    mana_produced?: string[];
     dualSpell?: boolean;
     dualFace?: boolean;
 }
 
-export type DecklistEntryType = Card & {
-    qty?: number;
+export type DecklistEntryType = {
+    card: Card;
+    qty?: number | null;
     onClick?: () => void;
     disabled?: boolean;
     popup?: (data: DecklistEntryType | null) => void;
@@ -129,14 +130,15 @@ function DecklistEntry(props: DecklistEntryType){
         props.onClick();
     }
     // TODO: For dual faced cards add flip action and make sure mana cost is present in data. 
-    const name = props.dualSpell? props.name.split("/")[0] : props.name;
+    const card = props.card;
+    const name = card.dualSpell? card.name.split("/")[0] : card.name;
     return (
     <div onMouseOver={revealCard} onMouseOut={hideCard} onClick={onClick}
             className={`relative border bg-gray-100 select-none cursor-pointer text-sm w-60 p-0.5`}>
         <div className="flex pointer-events-none text-nowrap">
-            {props.mana_cost && <ManaCost cost={props.mana_cost} className="flex-item mt-0.5 mr-0.5" />}
+            {card.mana_cost && <ManaCost cost={card.mana_cost} className="flex-item mt-0.5 mr-0.5" />}
             <div className={`flex-item card-title mt-0.5 ${props.disabled? "text-gray-400": ""}`}>{name}</div>
-            {props.dualFace && <FlipHorizontal className="w-4 h-4 ml-1 mt-0.5" />}
+            {card.dualFace && <FlipHorizontal className="w-4 h-4 ml-1 mt-0.5" />}
             {props.qty && <div className="inline-block ml-auto font-bold">&times;{props.qty}</div>}
         </div>
     </div>

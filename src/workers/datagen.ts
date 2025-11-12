@@ -1,3 +1,7 @@
+import type { Card } from "@/components/DecklistEntry";
+
+let simulation: number[] = [];
+let simSize = 0;
 
 function shuffle(array: number[]) {
   let currentIndex = array.length;
@@ -16,9 +20,12 @@ function simulateDraws(iterations: number, cardsSeen: number, indexedCards: any[
     if(indexedCards.length == 0) return [];
 
     const size = Math.floor(iterations) * Math.floor(cardsSeen);
-    const baseDeck = indexedCards.map(cq => Array(cq.qty).fill(null).map(_ => cq.index)).flat();
+    const baseDeck = indexedCards.map((cq, i) => 
+        Array(cq.qty).fill(null).map(_ => i)
+    ).flat();
 
-    const simulation = Array(size).fill(0);
+    simSize = cardsSeen;
+    simulation = Array(size).fill(0);
 
     for(let i=0; i<iterations; i++){
         let start = i * cardsSeen;
@@ -27,7 +34,51 @@ function simulateDraws(iterations: number, cardsSeen: number, indexedCards: any[
             simulation[start+d] = deck[d];
         }
     }
-    return simulation;
+    return { // don't provide direct access to the array
+        length: simulation.length,
+        maxDrawsPerGame: cardsSeen
+    };
+}
+
+
+function querySimulations(cards: Card[], cardsSeen: number, requiredCards: string[], colours: string[], totalMana: number){
+    const simCount = simulation.length / simSize;
+    const criterionMet = Array(simCount).fill(null);         // for each game we log if all criteria were met
+    
+    function hasRequiredColours(available: string[][], required: string[]){
+        return required.every(rc =>{
+            const foundIndex = available.findIndex(a => a.find(b => b == rc));
+            if(foundIndex == -1) return false;
+            available.splice(foundIndex, 1);    // remove the found colour source from the array so that it cant be used again
+            return true;
+        });
+    }
+
+    
+    function gamesim(draws: number[]): boolean{
+        const gameColoursAvailable: string[][] = [];
+        const numDraws = Math.min(cardsSeen, draws.length);
+        let totalManaAvailable = 0;
+        for(let i=0; i<numDraws; i++){
+            let cardDrawn: Card = cards[ draws[i] ];
+            if(cardDrawn.mana_produced){
+                gameColoursAvailable.push(cardDrawn.mana_produced);
+                // mana_produced gives the colour produced but not the number of mana, unless we parse the oracle text.
+                totalManaAvailable += 1; // add one for now,  but some sources add multple mana
+            }
+        }
+        // IGNORING REQUIRED CARDS FOR NOW
+        // TODO: instead of true / false could return turn number conditions are met by
+        return totalManaAvailable >= totalMana && hasRequiredColours(gameColoursAvailable, colours);// check all requoiirements met
+    }
+
+    for(let s=0; s<simCount; s++){
+        let gameDraws = simulation.slice(s*simSize, s*simSize+simSize);
+        criterionMet[s] = gamesim(gameDraws);
+    }
+
+    const successes = criterionMet.reduce((acc, success) => success? acc+1: acc, 0);
+    return {successes, p: (1.0 / simCount * successes)};
 }
 
 function onMessage(event: MessageEvent) {
@@ -37,17 +88,32 @@ function onMessage(event: MessageEvent) {
         const draws = simulateDraws(data.iterations, data.sample, data.deckList);
         const elapsed = Date.now() - startTime;
         self.postMessage({
-            status: 'complete',
-            data: draws,
+            status: 'generate-complete',
+            result: draws,
             elapsed
         });
-    }
-    /*else{
+    }else if(data.action == "query"){
+        const startTime = Date.now();
+        const result = querySimulations(data.cards, data.draws, data.requiredCards, data.colours, data.totalMana);
+        const elapsed = Date.now() - startTime;
+        self.postMessage({
+            status: 'query-complete',
+            result: result,
+            elapsed
+        });
+    }else if(data.action == "clear"){
+        simulation = [];
+        simSize = 0;
+        self.postMessage({
+            status: 'clear-complete',
+            message: `Simulation data cleared.`
+        });              
+    }else{
         self.postMessage({
             status: 'error',
             message: `Unknown action ${data.action}.`
         });        
-    }*/
+    }
 }
 
 self.onmessage = onMessage;
