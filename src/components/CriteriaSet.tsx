@@ -1,0 +1,59 @@
+import { useEffect, useState } from "react";
+import DecklistEntry, { type DecklistEntryType } from "./DecklistEntry";
+import ManaPicker from "./ManaPicker";
+import { Input } from "./ui/input";
+
+
+
+type CriteriaSetType = {
+    index: number;
+    onUpdate: (coloursRequired: string[], manaRequired: number) => void;
+    showCardData: (data: DecklistEntryType | null) => void;
+    cardsRequired: DecklistEntryType[];
+    removeCardRequirement: (setIndex: number, cardIndex: number) => void;
+};  
+
+function CriteriaSet({index, showCardData, onUpdate, cardsRequired, removeCardRequirement}: CriteriaSetType){
+
+    const [coloursRequired, setColoursRequired] = useState<string[]>([]);
+    const [manaRequired, setManaRequired] = useState<number>(0);
+
+    function colourRequirementsUpdated(val: string[]){
+        setColoursRequired(val);
+        if(val.length > manaRequired){
+            setManaRequired(val.length);
+        }
+    }  
+    function manaRequirementsUpdated(evt: any){
+        setManaRequired(Math.floor(Math.min(Math.max(coloursRequired.length, evt.target.value), 20))    );
+    }    
+
+    useEffect(() => {
+        onUpdate(coloursRequired, manaRequired);
+    }, [coloursRequired, manaRequired]);
+
+    return  (<>
+    {index > 0 && <div className="float-end p-1 mr-2 border-2 border-gray-200 text-lg bg-white font-bold" style={{marginTop: "-20px"}}>OR</div>}
+    <div className="border border-gray-200 p-2">
+        
+        <div className="flex my-2">
+            <div className="text-left mr-2">Specific Cards Seen: </div>
+            <div>
+                {cardsRequired.length > 0 && cardsRequired.map((d, i) => 
+                    <DecklistEntry {...d} key={i} popup={showCardData}  onClick={removeCardRequirement.bind(null, index, i)} />
+                ) || <span>None Required</span>}
+            </div>
+        </div>
+        <div className="flex my-2">
+            <ManaPicker title="Colour Sources Required:" onChange={colourRequirementsUpdated} /> 
+        </div>
+        <div className="flex"> 
+            <span className="text-left my-1 mr-2">Total Mana Required: </span>
+            <Input type="number" min={coloursRequired.length} max="20" value={manaRequired} 
+                onChange={manaRequirementsUpdated} className="w-20" />
+        </div>
+    </div>
+    </>);
+}
+
+export default CriteriaSet;

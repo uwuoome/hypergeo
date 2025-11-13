@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import ManaPicker from "./ManaPicker";
+import CriteriaSet from "./CriteriaSet";
 
  
 const DATA_URI = "/api/cards";
@@ -39,10 +39,10 @@ function MonteCarlo(){
     const [byTurn, setByTurn] = useState<number>(1);
     const [onThePlay, setOnThePlay] = useState<string>("play");
 
-    const [cardsRequired, setCardsRequired] = useState<DecklistEntryType[]>([]);
-    const [coloursRequired, setColoursRequired] = useState<string[]>([]);
-    const [manaRequired, setManaRequired] = useState<number>(0);
-
+    const [cardsRequired, setCardsRequired] = useState<DecklistEntryType[][]>([[]]);
+    const [coloursRequired, setColoursRequired] = useState<string[][]>([[]]);
+    const [manaRequired, setManaRequired] = useState<number[]>([0]);
+    
     const [cardPopup, setCardPopup] = useState<string | null>(null);
     const [debugInfo, setDebugInfo] = useState<string>("");
 
@@ -101,18 +101,23 @@ function MonteCarlo(){
 
     function canAddCard(data: DecklistEntryType){
         if(data.qty == null) return false;
-        return cardsRequired.reduce((acc, cur) => {
+        return cardsRequired[0].reduce((acc, cur) => {
             return cur.card._id == data.card._id? acc+1: acc;
         }, 0) >= data.qty;
     } 
     function addCardRequirement(data: DecklistEntryType){
         if(! simComplete()) return;
-        const alreadyAdded = cardsRequired.reduce((acc, cur) => {
+        const alreadyAdded = cardsRequired[0].reduce((acc, cur) => {
             return cur.card._id == data.card._id? acc+1: acc;
         }, 0);
         if(data.qty == null || alreadyAdded >= data.qty) return;
         const toAdd = {...data, qty: null};
-        setCardsRequired(prev => [...prev, toAdd]);
+        setCardsRequired(prev => {
+            const result = [...prev];
+            const updatedInnerArray = [...result[0], toAdd]; // need to copy inner array to be idempotent
+            result[0] = updatedInnerArray;
+            return result;
+        });
     }
     function showCardData(data: DecklistEntryType | null){
         if(data == null){
@@ -143,17 +148,26 @@ function MonteCarlo(){
             setByTurn(turnLimit);
         }
     }
-    function removeCardRequirement(index: number){
-        setCardsRequired(prev => prev.filter((_, i) => i != index));
+    function removeCardRequirement(setIndex: number, cardIndex: number){
+        setCardsRequired(prev => {
+            const result = [...prev];
+            result[setIndex] = result[setIndex].filter((_, i) => i != cardIndex);
+            return result;
+        });
     }
-    function colourRequirementsUpdated(val: string[]){
-        setColoursRequired(val);
-        if(val.length > manaRequired){
-            setManaRequired(val.length);
-        }
-    }  
-    function manaRequirementsUpdated(evt: any){
-        setManaRequired(Math.floor(Math.min(Math.max(coloursRequired.length, evt.target.value), 20))    );
+    function updateCriteria(coloursRequired: string[], manaRequired: number){
+        setColoursRequired([coloursRequired]);
+        setManaRequired([manaRequired]);
+    }
+    function newCriteriaSet(){
+        setCardsRequired(prev => [...prev, []]);
+        setColoursRequired(prev => [...prev, []]);
+        setManaRequired(prev => [...prev, 0]);
+    }
+    function removeCriteriaSet(){
+        setCardsRequired(prev => prev.slice(0, prev.length-1));
+        setColoursRequired(prev => prev.slice(0, prev.length-1));
+        setManaRequired(prev =>  prev.slice(0, prev.length-1));
     }
 
     function query(){
@@ -165,9 +179,9 @@ function MonteCarlo(){
             cards: deckList.map(li => li.card),
             draws: 6 + byTurn + (onThePlay? 0: 1),
             constraints: { 
-                cards: cardsRequired.map(entry => entry.card._id), 
-                colours: coloursRequired, 
-                totalMana: manaRequired
+                cards: cardsRequired[0].map(entry => entry.card._id), 
+                colours: coloursRequired[0], 
+                totalMana: manaRequired[0]
             }
         });
     }
@@ -299,30 +313,18 @@ function MonteCarlo(){
                         </SelectContent>
                     </Select>      
                 </div>
-
-                <div className="border border-gray-200 p-2">
-                    <div className="flex my-2">
-                        <div className="text-left mr-2">Specific Cards Seen: </div>
-                        <div>
-                            {cardsRequired.length > 0 && cardsRequired.map((d, i) => 
-                                <DecklistEntry {...d} key={i} popup={showCardData}  onClick={removeCardRequirement.bind(null, i)} />
-                            ) || <span>None Required</span>}
-                        </div>
-                    </div>
-                    <div className="flex my-2">
-                        <ManaPicker title="Colour Sources Required:" onChange={colourRequirementsUpdated} /> 
-                    </div>
-                    <div className="flex"> 
-                        <span className="text-left my-1 mr-2">Total Mana Required: </span>
-                        <Input type="number" min={coloursRequired.length} max="20" value={manaRequired} 
-                            onChange={manaRequirementsUpdated} className="w-20" />
-                        <Button variant="outline" className="ml-auto" onClick={
-                            alert.bind(null, "TODO: Copy this section and logically or the results")
-                        }>OR</Button>
-                    </div>
-                </div>
-
                 
+                {cardsRequired.map((_, i) => 
+                    <CriteriaSet index={i} key={i} showCardData={showCardData} onUpdate={updateCriteria} 
+                            cardsRequired={cardsRequired[i]} removeCardRequirement={removeCardRequirement} />
+                )}
+
+                <div className="flex my-2 text-center text-bold">
+                {cardsRequired.length > 1 && 
+                    <Button variant="destructive" onClick={removeCriteriaSet}>Remove Last Constraint Set</Button>
+                }
+                    <Button variant="outline" className="ml-auto" onClick={newCriteriaSet}>Add Constraint Set</Button>
+                </div>
                 <div className="flex my-2 text-center text-bold"> 
                     {result} 
                     <Button variant="outline" className="ml-auto" onClick={query}><Search /> Search</Button>
