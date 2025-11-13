@@ -82,7 +82,7 @@ function gamesim(cards: Card[], draws: number[], cardsSeen: number, constraints:
         }
     }
     // now we go over it again checking for spells we can play that produce mana
-    const manaRocks = draws.filter((draw) => {
+    const manaRocks = draws.slice(0, numDraws).filter((draw) => {
         const cardDrawn: Card = cards[ draw ];
         const manaCost = cardDrawn?.mana_cost;
         return cardDrawn.mana_produced && manaCost && manaCost[0];
@@ -98,9 +98,8 @@ function gamesim(cards: Card[], draws: number[], cardsSeen: number, constraints:
         }
     }
     // TODO: instead of true / false could return turn number conditions are met by
-    const drawCardIds = draws.map(drawIndex => cards[drawIndex]._id);
+    const drawCardIds = draws.slice(0, numDraws).map(drawIndex => cards[drawIndex]._id);
     const hasSpecificCards = (cardIds: string[], requiredIds: string[]) => requiredIds.every(rid => cardIds.includes(rid));
-
     return totalManaAvailable >= constraints.totalMana && 
         hasRequiredColours(gameColoursAvailable, constraints.colours) &&
         hasSpecificCards(drawCardIds, constraints.cards);
