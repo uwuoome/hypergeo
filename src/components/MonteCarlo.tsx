@@ -186,6 +186,16 @@ function MonteCarlo(){
         );
     }
 
+    function createConstaintsList(){
+        return cardsRequired.map((cr, i) => { 
+            return {
+                cards: cr.map(entry => entry.card._id), 
+                colours: coloursRequired[i], 
+                totalMana: manaRequired[i]
+            };
+        });
+    }
+
     function query(){
         if(workerRef.current == null || queryProgress != null) return;
         setQueryProgress(1);
@@ -194,11 +204,7 @@ function MonteCarlo(){
             action: "query", 
             cards: deckList.map(li => li.card),
             draws: 6 + byTurn + (onThePlay? 0: 1),
-            constraints: { 
-                cards: cardsRequired[0].map(entry => entry.card._id), 
-                colours: coloursRequired[0], 
-                totalMana: manaRequired[0]
-            }
+            constraints: createConstaintsList()
         });
     }
 

@@ -105,13 +105,15 @@ function gamesim(cards: Card[], draws: number[], cardsSeen: number, constraints:
         hasSpecificCards(drawCardIds, constraints.cards);
 }
 
-function querySimulations(cards: Card[], cardsSeen: number, constraints: GameRequirements){//requiredCards: string[], colours: string[], totalMana: number){
+function querySimulations(cards: Card[], cardsSeen: number, constraints: GameRequirements[]){//requiredCards: string[], colours: string[], totalMana: number){
     const simCount = simulation.length / simSize;
     const criterionMet = Array(simCount).fill(null);         // for each game we log if all criteria were met
     
     for(let s=0; s<simCount; s++){
         let gameDraws = simulation.slice(s*simSize, s*simSize+simSize);
-        criterionMet[s] = gamesim(cards, gameDraws, cardsSeen, constraints);
+        criterionMet[s] = constraints.some(constraintSet => 
+            gamesim(cards, gameDraws, cardsSeen, constraintSet)
+        );
     }
 
     const successes = criterionMet.reduce((acc, success) => success? acc+1: acc, 0);
