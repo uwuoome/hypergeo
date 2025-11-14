@@ -101,21 +101,23 @@ function MonteCarlo(){
 
     function canAddCard(data: DecklistEntryType){
         if(data.qty == null) return false;
-        return cardsRequired[0].reduce((acc, cur) => {
+
+        return cardsRequired[cardsRequired.length-1].reduce((acc, cur) => {
             return cur.card._id == data.card._id? acc+1: acc;
         }, 0) >= data.qty;
     } 
     function addCardRequirement(data: DecklistEntryType){
         if(! simComplete()) return;
-        const alreadyAdded = cardsRequired[0].reduce((acc, cur) => {
+        const lastIndex = cardsRequired.length-1;
+        const alreadyAdded = cardsRequired[lastIndex].reduce((acc, cur) => {
             return cur.card._id == data.card._id? acc+1: acc;
         }, 0);
         if(data.qty == null || alreadyAdded >= data.qty) return;
         const toAdd = {...data, qty: null};
         setCardsRequired(prev => {
             const result = [...prev];
-            const updatedInnerArray = [...result[0], toAdd]; // need to copy inner array to be idempotent
-            result[0] = updatedInnerArray;
+            const updatedInnerArray = [...result[lastIndex], toAdd]; // need to copy inner array to be idempotent
+            result[lastIndex] = updatedInnerArray;
             return result;
         });
     }
@@ -155,9 +157,17 @@ function MonteCarlo(){
             return result;
         });
     }
-    function updateCriteria(coloursRequired: string[], manaRequired: number){
-        setColoursRequired([coloursRequired]);
-        setManaRequired([manaRequired]);
+    function updateCriteria(setIndex: number, cr: string[], mr: number){
+        setColoursRequired(prev => {
+            const result = [...prev];
+            result[setIndex] = cr;
+            return result;
+        });
+        setManaRequired(prev => {
+            const result = [...prev];
+            result[setIndex] = mr;
+            return result;
+        });
     }
     function newCriteriaSet(){
         setCardsRequired(prev => [...prev, []]);
@@ -168,6 +178,12 @@ function MonteCarlo(){
         setCardsRequired(prev => prev.slice(0, prev.length-1));
         setColoursRequired(prev => prev.slice(0, prev.length-1));
         setManaRequired(prev =>  prev.slice(0, prev.length-1));
+    }
+
+    function hasConstraints(){
+        return cardsRequired.every((crs, i) => 
+            crs.length > 0 || coloursRequired[i]?.length > 0 || manaRequired[i] > 0
+        );
     }
 
     function query(){
@@ -289,7 +305,7 @@ function MonteCarlo(){
                         {progress != null? <Spinner />: <Play />} {!simComplete()? "Run": "Rerun"}
                     </Button>
                 </div>
-                <div className="flex m-4">
+                <div className="flex mt-2 ml-4">
                     {simComplete()? `Data for ${simulation.current.length} draws has been generated.`: ""}
                 </div>
             </div>
@@ -313,9 +329,9 @@ function MonteCarlo(){
                         </SelectContent>
                     </Select>      
                 </div>
-                
+
                 {cardsRequired.map((_, i) => 
-                    <CriteriaSet index={i} key={i} showCardData={showCardData} onUpdate={updateCriteria} 
+                    <CriteriaSet index={i} key={i} showCardData={showCardData} onUpdate={updateCriteria.bind(null, i)} 
                             cardsRequired={cardsRequired[i]} removeCardRequirement={removeCardRequirement} />
                 )}
 
@@ -323,11 +339,15 @@ function MonteCarlo(){
                 {cardsRequired.length > 1 && 
                     <Button variant="destructive" onClick={removeCriteriaSet}>Remove Last Constraint Set</Button>
                 }
-                    <Button variant="outline" className="ml-auto" onClick={newCriteriaSet}>Add Constraint Set</Button>
+                    <Button variant="outline" className="ml-auto" disabled={!hasConstraints()} onClick={newCriteriaSet}>
+                        Add Constraint Set
+                    </Button>
                 </div>
                 <div className="flex my-2 text-center text-bold"> 
                     {result} 
-                    <Button variant="outline" className="ml-auto" onClick={query}><Search /> Search</Button>
+                    <Button variant="outline" className="ml-auto" disabled={!hasConstraints()} onClick={query}>
+                        <Search /> Search
+                    </Button>
                 </div>
             </div>
             }

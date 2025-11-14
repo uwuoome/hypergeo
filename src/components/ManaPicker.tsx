@@ -16,6 +16,7 @@ type ManaPickerType = {
 function ManaPicker(props: ManaPickerType){
     const [selected, setSelected] = useState<string[]>([]);
     function add(colour: string){
+        if(selected.length > 12) return;
         setSelected([...selected, colour]);
     }
     function remove(index: number){

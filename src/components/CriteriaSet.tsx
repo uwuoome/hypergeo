@@ -36,7 +36,7 @@ function CriteriaSet({index, showCardData, onUpdate, cardsRequired, removeCardRe
     {index > 0 && <div className="float-end p-1 mr-2 border-2 border-gray-200 text-lg bg-white font-bold" style={{marginTop: "-20px"}}>OR</div>}
     <div className="border border-gray-200 p-2">
         
-        <div className="flex my-2">
+        <div className="flex mb-2">
             <div className="text-left mr-2">Specific Cards Seen: </div>
             <div>
                 {cardsRequired.length > 0 && cardsRequired.map((d, i) => 
