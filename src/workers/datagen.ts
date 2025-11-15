@@ -105,7 +105,7 @@ function gamesim(cards: Card[], draws: number[], cardsSeen: number, constraints:
         hasSpecificCards(drawCardIds, constraints.cards);
 }
 
-function querySimulations(cards: Card[], cardsSeen: number, constraints: GameRequirements[]){//requiredCards: string[], colours: string[], totalMana: number){
+function querySimulations(cards: Card[], cardsSeen: number, constraints: GameRequirements[]){
     const simCount = simulation.length / simSize;
     const criterionMet = Array(simCount).fill(null);         // for each game we log if all criteria were met
     

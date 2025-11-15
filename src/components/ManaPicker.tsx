@@ -9,12 +9,13 @@ import CMana from '@/assets/mana/C.svg?react';
 
 type ManaPickerType = {
     title: string;
+    colours?: string[];
     onChange?: (values: string[]) => void;
 }
 
 
 function ManaPicker(props: ManaPickerType){
-    const [selected, setSelected] = useState<string[]>([]);
+    const [selected, setSelected] = useState<string[]>(props.colours || []);
     function add(colour: string){
         if(selected.length > 12) return;
         setSelected([...selected, colour]);

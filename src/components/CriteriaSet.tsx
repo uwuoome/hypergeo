@@ -10,27 +10,30 @@ type CriteriaSetType = {
     onUpdate: (coloursRequired: string[], manaRequired: number) => void;
     showCardData: (data: DecklistEntryType | null) => void;
     cardsRequired: DecklistEntryType[];
+    coloursRequired: string [];
+    manaRequired: number;
     removeCardRequirement: (setIndex: number, cardIndex: number) => void;
 };  
 
-function CriteriaSet({index, showCardData, onUpdate, cardsRequired, removeCardRequirement}: CriteriaSetType){
+function CriteriaSet({index, showCardData, onUpdate, cardsRequired, coloursRequired, manaRequired, removeCardRequirement}: CriteriaSetType){
 
-    const [coloursRequired, setColoursRequired] = useState<string[]>([]);
-    const [manaRequired, setManaRequired] = useState<number>(0);
+    const [coloursRequired2, setColoursRequired2] = useState<string[]>(coloursRequired);
+    const [manaRequired2, setManaRequired2] = useState<number>(manaRequired || 0);
 
     function colourRequirementsUpdated(val: string[]){
-        setColoursRequired(val);
+        setColoursRequired2(val);
         if(val.length > manaRequired){
-            setManaRequired(val.length);
+            setManaRequired2(val.length);
         }
     }  
     function manaRequirementsUpdated(evt: any){
-        setManaRequired(Math.floor(Math.min(Math.max(coloursRequired.length, evt.target.value), 20))    );
+        console.log("mana requirements", evt.target.value)
+        setManaRequired2(Math.floor(Math.min(Math.max(coloursRequired2.length, evt.target.value), 20))    );
     }    
 
     useEffect(() => {
-        onUpdate(coloursRequired, manaRequired);
-    }, [coloursRequired, manaRequired]);
+        onUpdate(coloursRequired2, manaRequired2);
+    }, [coloursRequired2, manaRequired2]);
 
     return  (<>
     {index > 0 && <div className="float-end p-1 mr-2 border-2 border-gray-200 text-lg bg-white font-bold" style={{marginTop: "-20px"}}>OR</div>}
@@ -45,11 +48,11 @@ function CriteriaSet({index, showCardData, onUpdate, cardsRequired, removeCardRe
             </div>
         </div>
         <div className="flex my-2">
-            <ManaPicker title="Colour Sources Required:" onChange={colourRequirementsUpdated} /> 
+            <ManaPicker title="Colour Sources Required:" colours={coloursRequired} onChange={colourRequirementsUpdated} /> 
         </div>
         <div className="flex"> 
             <span className="text-left my-1 mr-2">Total Mana Required: </span>
-            <Input type="number" min={coloursRequired.length} max="20" value={manaRequired} 
+            <Input type="number" min={coloursRequired2.length || 0} max="20" value={manaRequired2} 
                 onChange={manaRequirementsUpdated} className="w-20" />
         </div>
     </div>

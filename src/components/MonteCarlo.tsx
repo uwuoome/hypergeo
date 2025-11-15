@@ -5,7 +5,7 @@ import DecklistEntry, { type Card, type DecklistEntryType} from './DecklistEntry
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
-import { CircleX, Play, Search, Trash2 } from "lucide-react";
+import { CircleX, Play, Save, Search, Trash2, FileDown, FileUp } from "lucide-react";
 import { Spinner } from "./ui/spinner";
 //import { chunk } from "@/lib/utils";
 import {
@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import CriteriaSet from "./CriteriaSet";
+import ConstraintsExport from "./ConstraintsExport";
 
  
 const DATA_URI = "/api/cards";
@@ -74,8 +75,9 @@ function MonteCarlo(){
             return {card: dataItem, qty: li.qty};
         });
         setDeckList(mergedData);
+        return mergedData;
     }
-    async function runSimulation(){
+    async function runSimulation(dl: DecklistEntryType[] | undefined | null){
         if(progress != null || workerRef.current == null) return; 
         if(simComplete()){
             if(! confirm("Rerun simulation and lose current dataset?")) return; 
@@ -83,7 +85,7 @@ function MonteCarlo(){
         simReset();
         setProgress(1);
         console.log("generating dataset");
-        workerRef.current.postMessage({action: "generate", iterations: iterations*1000, sample, deckList: deckList});
+        workerRef.current.postMessage({action: "generate", iterations: iterations*1000, sample, deckList: dl || deckList});
     }
     function clearData(){
         if(simComplete()){
@@ -208,6 +210,42 @@ function MonteCarlo(){
         });
     }
 
+    function exportObject(){
+        return {
+            deck: deckList.map(li => [li.qty, li.card?.name].join(" ")).join("\n"), 
+            iterations,
+            sample,
+            cardsRequired: cardsRequired,
+            coloursRequired: coloursRequired, 
+            manaRequired: manaRequired,
+        };
+    }
+
+    function xport(){
+        return JSON.stringify(exportObject());
+    }
+
+    function save(){
+        const data = exportObject();
+        localStorage.setItem("saved", JSON.stringify(data));
+        alert("Saved");
+    }
+
+    async function load(){
+        const saved = localStorage.getItem("saved");
+        if(saved == null) return alert("No saved data");
+        const data = JSON.parse(saved);
+        if(! data.deck) return alert("No deck data");
+        setProgress(null);
+        setIterations(data.iterations);
+        setSample(data.sample);
+        const dl = await loadDeckList(data.deck);
+        await runSimulation(dl);
+        setCardsRequired(data.cardsRequired);
+        setColoursRequired(data.coloursRequired);
+        setManaRequired(data.manaRequired);
+    }
+
     useEffect(() => {
         const workerURL = new URL('@/workers/datagen.ts', import.meta.url);
         workerRef.current = new Worker(workerURL, {
@@ -244,7 +282,18 @@ function MonteCarlo(){
         <h2 className="">{title}</h2> 
         <div className="flex w-full">   
             <div className="w-100 mr-4">
-                <Textarea placeholder="Paste decklist here." onChange={(evt) => loadDeckList(evt.target.value)}></Textarea>
+                <Textarea placeholder="Paste decklist here..." onChange={(evt) => loadDeckList(evt.target.value)}></Textarea>
+                <div className="flex mt-2">
+                    <div className="mr-2">Or:</div> 
+                    <div>
+                        <Button variant="outline"  onClick={load}>
+                            <FileUp />Load A Saved Configuration &nbsp;
+                        </Button>
+                        <Button variant="outline" className="mt-2" onClick={() => alert("TODO")}>
+                            <FileUp />Load A Sample Configuration
+                        </Button>
+                    </div>
+                </div>
             </div>
             <div className="text-left">
                 Simulate thousands of games then query the results to guage the probability of events.
@@ -307,7 +356,7 @@ function MonteCarlo(){
                     <Input id="sample-size" className="w-30"  type="number" min="7" max="30" step="1"
                         value={sample} onChange={(evt) => setSample(parseInt(evt.target.value))} />
                     <span className="text-sm text-gray-400 font-normal text-nowrap">(cards seen)</span>
-                    <Button variant="outline" className="w-30 ml-auto" onClick={runSimulation} disabled={progress != null}>
+                    <Button variant="outline" className="w-30 ml-auto" onClick={runSimulation.bind(null, null)} disabled={progress != null}>
                         {progress != null? <Spinner />: <Play />} {!simComplete()? "Run": "Rerun"}
                     </Button>
                 </div>
@@ -338,7 +387,8 @@ function MonteCarlo(){
 
                 {cardsRequired.map((_, i) => 
                     <CriteriaSet index={i} key={i} showCardData={showCardData} onUpdate={updateCriteria.bind(null, i)} 
-                            cardsRequired={cardsRequired[i]} removeCardRequirement={removeCardRequirement} />
+                            cardsRequired={cardsRequired[i]} coloursRequired={coloursRequired[i]} manaRequired={manaRequired[i]}
+                            removeCardRequirement={removeCardRequirement} />
                 )}
 
                 <div className="flex my-2 text-center text-bold">
@@ -351,9 +401,15 @@ function MonteCarlo(){
                 </div>
                 <div className="flex my-2 text-center text-bold"> 
                     {result} 
-                    <Button variant="outline" className="ml-auto" disabled={!hasConstraints()} onClick={query}>
-                        <Search /> Search
-                    </Button>
+                    <div className="ml-auto" > 
+                        <ConstraintsExport onClick={xport} />
+                        <Button variant="outline" className="ml-2 mr-2" onClick={save}>
+                            <Save />
+                        </Button>
+                        <Button variant="outline" disabled={!hasConstraints()} onClick={query}>
+                            <Search /> Search
+                        </Button>
+                    </div>
                 </div>
             </div>
             }
