@@ -5,7 +5,7 @@ import DecklistEntry, { type Card, type DecklistEntryType} from './DecklistEntry
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
-import { CircleX, Play, Save, Search, Trash2, FileDown, FileUp } from "lucide-react";
+import { CircleX, Play, Save, Search, Trash2, FileUp } from "lucide-react";
 import { Spinner } from "./ui/spinner";
 //import { chunk } from "@/lib/utils";
 import {
@@ -92,6 +92,9 @@ function MonteCarlo(){
             if(! confirm("Clear deck and generated simulation data?")) return;
             simReset();
             workerRef.current?.postMessage({action: "clear", iterations: iterations*1000, sample, deckList: deckList});
+            setCardsRequired([]);
+            setColoursRequired([]);
+            setManaRequired([0]);
         }
         loadDeckList("");
     }
@@ -103,7 +106,7 @@ function MonteCarlo(){
 
     function canAddCard(data: DecklistEntryType){
         if(data.qty == null) return false;
-
+        if(cardsRequired.length == 0) return true;
         return cardsRequired[cardsRequired.length-1].reduce((acc, cur) => {
             return cur.card._id == data.card._id? acc+1: acc;
         }, 0) >= data.qty;

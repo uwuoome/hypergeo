@@ -99,7 +99,16 @@ function gamesim(cards: Card[], draws: number[], cardsSeen: number, constraints:
     }
     // TODO: instead of true / false could return turn number conditions are met by
     const drawCardIds = draws.slice(0, numDraws).map(drawIndex => cards[drawIndex]._id);
-    const hasSpecificCards = (cardIds: string[], requiredIds: string[]) => requiredIds.every(rid => cardIds.includes(rid));
+
+    const hasSpecificCards = (cardIds: string[], requiredIds: string[]) => {
+        const cardsLeft = [...cardIds];
+        return requiredIds.every(rid => {
+            const firstIndex = cardsLeft.indexOf(rid);
+            if(firstIndex == -1) return false;
+            cardsLeft.splice(firstIndex, 1);
+            return true;
+        });
+    }
     return totalManaAvailable >= constraints.totalMana && 
         hasRequiredColours(gameColoursAvailable, constraints.colours) &&
         hasSpecificCards(drawCardIds, constraints.cards);
